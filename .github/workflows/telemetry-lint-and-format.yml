@@ -1,0 +1,38 @@
+name: Lint and Format Telemetry
+
+on:
+    push:
+        branches: [ main ]
+        paths:
+            - "telemetry/src/**"
+    pull_request:
+        branches: [ main ]
+        paths:
+            - "telemetry/src/**"
+
+jobs:
+    lint-and-format-telemetry:
+        name: Lint and Format Telemetry
+        runs-on: ubuntu-latest
+
+        defaults:
+            run:
+                working-directory: ./telemetry
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                  workspaces: "./telemetry/src -> target"
+
+            - name: Check formatting
+              run: cargo fmt
+
+            - name: Run Clippy
+              # fix warnings and errors before merging
+              run: cargo clippy -- -D warnings
