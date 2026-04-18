@@ -38,6 +38,7 @@ async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
 
 async fn handle_socket(mut socket: WebSocket) {
     tracing::info!("New driver connected");
+    let mut counter = 0;
 
     while let Some(msg) = socket.recv().await {
         let msg = if let Ok(msg) = msg {
@@ -53,6 +54,8 @@ async fn handle_socket(mut socket: WebSocket) {
                 Ok(ping) => {
                     // Logic for Redis persistence or state updates goes here
                     tracing::info!("Location received: Lat {}, Lng {}", ping.lat, ping.lng);
+                    counter += 1;
+                    tracing::info!("Total locations received: {}", counter);
                 }
                 Err(e) => {
                     tracing::error!("Failed to parse telemetry data: {}", e);
