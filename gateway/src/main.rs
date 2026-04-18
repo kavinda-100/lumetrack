@@ -32,7 +32,7 @@ async fn main() {
     // 3. Define the Router
     let app = Router::new()
         // Capture everything under /api/v1 and send to our handler
-        .route("/api/v1/*path", any(proxy_handler))
+        .route("/api/v1/{*path}", any(proxy_handler))
         .with_state(state);
 
     // 4. Start the server
