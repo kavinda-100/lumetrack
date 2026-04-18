@@ -1,0 +1,38 @@
+name: Lint and Format Gateway
+
+on:
+    push:
+        branches: [ main ]
+        paths:
+            - "gateway/src/**"
+    pull_request:
+        branches: [ main ]
+        paths:
+            - "gateway/src/**"
+
+jobs:
+    lint-and-format-gateway:
+        name: Lint and Format Gateway
+        runs-on: ubuntu-latest
+
+        defaults:
+            run:
+                working-directory: ./gateway/src
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Install Rust stable
+              uses: dtolnay/rust-toolchain@stable
+
+            - name: Rust cache
+              uses: swatinem/rust-cache@v2
+              with:
+                  workspaces: "./gateway/src -> target"
+
+            - name: Check formatting
+              run: cargo fmt
+
+            - name: Run Clippy
+              # fix warnings and errors before merging
+              run: cargo clippy -- -D warnings
