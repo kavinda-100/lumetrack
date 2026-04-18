@@ -17,7 +17,7 @@ jobs:
 
         defaults:
             run:
-                working-directory: ./gateway/src
+                working-directory: ./gateway
 
         steps:
             - uses: actions/checkout@v4
