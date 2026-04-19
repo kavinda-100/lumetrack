@@ -4,7 +4,7 @@ import { createClient } from 'redis';
 
 const app = express();
 app.use(express.json());
-const PORT = 3000;
+const PORT = 8083;
 
 // Initialize Redis client for later use with the Telemetry service
 const redis = createClient({ url: 'redis://localhost:6379' });

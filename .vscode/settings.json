@@ -1,9 +1,13 @@
 {
 	"cSpell.words": [
+		"BYRADIUS",
+		"FROMLONLAT",
 		"GEOADD",
+		"GEOSEARCH",
 		"Geospatial",
 		"Lumetrack",
 		"Scannability",
+		"WITHDIST",
 		"worklets"
 	]
 }
