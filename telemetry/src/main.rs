@@ -40,7 +40,7 @@ async fn main() {
         .route("/ws", get(ws_handler))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 5001));
     tracing::info!("Telemetry service listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
@@ -65,11 +65,14 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
 
         if let Message::Text(text) = msg {
             if let Ok(ping) = serde_json::from_str::<LocationPing>(text.as_str()) {
-                let mut con = state
-                    .redis_client
-                    .get_multiplexed_async_connection()
-                    .await
-                    .unwrap();
+                // Establish connection once per driver session
+                let mut con = match state.redis_client.get_multiplexed_async_connection().await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        tracing::error!("Failed to connect to Redis: {}", e);
+                        return; // Close this driver's socket since can't save their data
+                    }
+                };
 
                 // 1. Store the raw metadata (for quick lookup)
                 let key = format!("driver:{}:location", ping.driver_id);
@@ -84,7 +87,9 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
                     .arg(&ping.driver_id)
                     .query_async(&mut con)
                     .await
-                    .unwrap();
+                    .unwrap_or_else(|e| {
+                        tracing::error!("Failed to execute GEOADD: {}", e);
+                    });
 
                 tracing::info!("Geospatial index updated for: {}", ping.driver_id);
             }

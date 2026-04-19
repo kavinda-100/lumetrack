@@ -36,7 +36,7 @@ async fn main() {
         .with_state(state);
 
     // 4. Start the server
-    let addr = SocketAddr::from(([127, 0, 0, 1], 4000));
+    let addr = SocketAddr::from(([127, 0, 0, 1], 5000));
     tracing::info!("LumeTrack Gateway running at http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -48,9 +48,9 @@ async fn proxy_handler(State(state): State<Arc<AppState>>, mut req: Request) -> 
 
     // Determine which microservice to target based on the path
     let target_url = if path.starts_with("/api/v1/orders") {
-        "http://127.0.0.1:3000" // TS Order Manager
+        "http://127.0.0.1:5003" // TS Order Manager
     } else if path.starts_with("/api/v1/telemetry") {
-        "http://127.0.0.1:8080" // Rust Telemetry
+        "http://127.0.0.1:5001" // Rust Telemetry
     } else {
         return StatusCode::NOT_FOUND.into_response();
     };

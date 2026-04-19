@@ -25,6 +25,7 @@ const useTelemetryProd = (isTracking: boolean) => {
 					},
 					(location) => {
 						const data = JSON.stringify({
+							driver_id: 'DRIVER-001',
 							lat: location.coords.latitude,
 							lng: location.coords.longitude,
 							timestamp: location.timestamp,
@@ -64,6 +65,7 @@ const useTelemetryDev = (isTracking: boolean) => {
 					});
 
 					const data = JSON.stringify({
+						driver_id: 'DRIVER-001',
 						lat: location.coords.latitude,
 						lng: location.coords.longitude,
 						timestamp: location.timestamp,
