@@ -53,12 +53,6 @@ async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) ->
 
 async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     tracing::info!("New driver connected");
-    let mut counter = 0;
-    let mut con = state
-        .redis_client
-        .get_multiplexed_async_connection()
-        .await
-        .unwrap();
 
     while let Some(msg) = socket.recv().await {
         let msg = if let Ok(msg) = msg {
@@ -70,24 +64,29 @@ async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
         };
 
         if let Message::Text(text) = msg {
-            match serde_json::from_str::<LocationPing>(&text) {
-                Ok(ping) => {
-                    // Convert Utf8Bytes to a standard &str for Serde and Redis
-                    let text_str = text.as_str();
-                    // 2. Persist to Redis
-                    // We store the coordinate as a stringified JSON or a Hash
-                    let key = format!("driver:{}:location", ping.driver_id);
-                    let _: () = con.set_ex(&key, text_str, 60).await.unwrap(); // Expire in 60s if driver goes ghost
+            if let Ok(ping) = serde_json::from_str::<LocationPing>(text.as_str()) {
+                let mut con = state
+                    .redis_client
+                    .get_multiplexed_async_connection()
+                    .await
+                    .unwrap();
 
-                    // Logic for Redis persistence or state updates goes here
-                    tracing::info!("Location received: Lat {}, Lng {}", ping.lat, ping.lng);
-                    tracing::info!("Redis updated for driver: {}", ping.driver_id);
-                    counter += 1;
-                    tracing::info!("Total locations received: {}", counter);
-                }
-                Err(e) => {
-                    tracing::error!("Failed to parse telemetry data: {}", e);
-                }
+                // 1. Store the raw metadata (for quick lookup)
+                let key = format!("driver:{}:location", ping.driver_id);
+                let _: () = con.set_ex(&key, text.as_str(), 60).await.unwrap();
+
+                // 2. Add to Geospatial Index
+                // Command: GEOADD key longitude latitude member
+                let _: () = redis::cmd("GEOADD")
+                    .arg("drivers:locations")
+                    .arg(ping.lng)
+                    .arg(ping.lat)
+                    .arg(&ping.driver_id)
+                    .query_async(&mut con)
+                    .await
+                    .unwrap();
+
+                tracing::info!("Geospatial index updated for: {}", ping.driver_id);
             }
         }
     }
