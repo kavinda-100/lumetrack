@@ -1,15 +1,25 @@
 use axum::{
-    extract::ws::{Message, WebSocket, WebSocketUpgrade},
+    Router,
+    extract::{
+        State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
+    },
     response::IntoResponse,
     routing::get,
-    Router,
 };
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
+use std::{net::SocketAddr, sync::Arc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+// Shared state to hold our Redis client
+struct AppState {
+    redis_client: redis::Client,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 struct LocationPing {
+    driver_id: String,
     lat: f64,
     lng: f64,
     timestamp: u64,
@@ -22,23 +32,33 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Initialize Redis Client
+    let redis_client = redis::Client::open("redis://127.0.0.1/").expect("Invalid Redis URL");
+    let state = Arc::new(AppState { redis_client });
+
     let app = Router::new()
-        .route("/ws", get(ws_handler));
+        .route("/ws", get(ws_handler))
+        .with_state(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
     tracing::info!("Telemetry service listening on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_socket)
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_socket(socket, state))
 }
 
-async fn handle_socket(mut socket: WebSocket) {
+async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
     tracing::info!("New driver connected");
     let mut counter = 0;
+    let mut con = state
+        .redis_client
+        .get_multiplexed_async_connection()
+        .await
+        .unwrap();
 
     while let Some(msg) = socket.recv().await {
         let msg = if let Ok(msg) = msg {
@@ -52,8 +72,16 @@ async fn handle_socket(mut socket: WebSocket) {
         if let Message::Text(text) = msg {
             match serde_json::from_str::<LocationPing>(&text) {
                 Ok(ping) => {
+                    // Convert Utf8Bytes to a standard &str for Serde and Redis
+                    let text_str = text.as_str();
+                    // 2. Persist to Redis
+                    // We store the coordinate as a stringified JSON or a Hash
+                    let key = format!("driver:{}:location", ping.driver_id);
+                    let _: () = con.set_ex(&key, text_str, 60).await.unwrap(); // Expire in 60s if driver goes ghost
+
                     // Logic for Redis persistence or state updates goes here
                     tracing::info!("Location received: Lat {}, Lng {}", ping.lat, ping.lng);
+                    tracing::info!("Redis updated for driver: {}", ping.driver_id);
                     counter += 1;
                     tracing::info!("Total locations received: {}", counter);
                 }
