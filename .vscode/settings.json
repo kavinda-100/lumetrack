@@ -7,6 +7,7 @@
 		"Geospatial",
 		"Lumetrack",
 		"Scannability",
+		"tungstenite",
 		"WITHDIST",
 		"worklets"
 	]

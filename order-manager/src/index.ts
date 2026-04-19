@@ -16,7 +16,7 @@ const OrderSchema = z.object({
     customer_id: z.string(),
 });
 
-app.post('/api/v1/orders/create', async (req, res) => {
+app.post('/api/v1/orders-service/create', async (req, res) => {
     const order = OrderSchema.safeParse(req.body);
 
     if (!order.success) {

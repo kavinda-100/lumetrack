@@ -33,7 +33,7 @@ async fn main() {
     let state = Arc::new(AppState { redis_client });
 
     let app = Router::new()
-        .route("/search", get(find_nearby_drivers))
+        .route("/api/v1/search-service/search", get(find_nearby_drivers))
         .with_state(state);
 
     let addr = std::net::SocketAddr::from(([0, 0, 0, 0], 5002));
