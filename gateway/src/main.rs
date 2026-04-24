@@ -51,6 +51,8 @@ async fn proxy_handler(State(state): State<Arc<AppState>>, mut req: Request) -> 
         5003 // Order Manager
     } else if path.starts_with("/api/v1/search-service") {
         5002 // Discovery Service
+    } else if path.starts_with("/api/v1/identity-service") {
+        5004 // Identity Service
     } else {
         return StatusCode::NOT_FOUND.into_response();
     };
