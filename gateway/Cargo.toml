@@ -17,3 +17,4 @@ tracing = "0.1"
 tracing-subscriber = "0.3"
 tokio-tungstenite = "0.29.0"
 futures-util = "0.3.32"
+chrono = { version = "0.4", features = ["serde"] }

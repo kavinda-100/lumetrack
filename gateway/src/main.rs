@@ -1,5 +1,5 @@
 use axum::{
-    Router,
+    Json, Router,
     body::Body,
     extract::{Request, State, ws::WebSocketUpgrade},
     http::{StatusCode, uri::Uri},
@@ -54,6 +54,8 @@ async fn main() {
         .route("/ws/v1/telemetry-service", get(ws_proxy_handler))
         // General API routes
         .route("/api/v1/{*path}", any(proxy_handler))
+        // Health check endpoint
+        .route("/health", get(health_check_handler))
         .with_state(state);
 
     // Start the server
@@ -145,4 +147,16 @@ async fn ws_proxy_handler(
 
         tokio::join!(f1, f2);
     })
+}
+
+// health check endpoint for monitoring
+async fn health_check_handler() -> impl IntoResponse {
+    // send a sJson response with status "ok", and the current timestamp
+    let response = serde_json::json!({
+        "status": "ok",
+        "message": "Gateway is healthy",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    });
+
+    Json(response).into_response()
 }
