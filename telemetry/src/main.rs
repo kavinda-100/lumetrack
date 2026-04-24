@@ -1,28 +1,18 @@
-use axum::{
-    Router,
-    extract::{
-        State,
-        ws::{Message, WebSocket, WebSocketUpgrade},
-    },
-    response::IntoResponse,
-    routing::get,
-};
-use redis::AsyncCommands;
-use serde::{Deserialize, Serialize};
+use axum::{Json, Router, response::IntoResponse, routing::get};
 use std::{net::SocketAddr, sync::Arc};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod config;
+mod ws; // WebSocket handling logic
+use crate::config::env::EnvConfig;
+use crate::ws::ws_handler; // Import directly from rt
+
 // Shared state to hold our Redis client
+#[derive(Clone)]
 struct AppState {
     redis_client: redis::Client,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct LocationPing {
-    driver_id: String,
-    lat: f64,
-    lng: f64,
-    timestamp: u64,
+    #[allow(dead_code)]
+    env_config: EnvConfig,
 }
 
 #[tokio::main]
@@ -32,67 +22,39 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    // Load configuration from environment variables
+    let env_config = EnvConfig::from_env();
+
     // Initialize Redis Client
-    let redis_client = redis::Client::open("redis://127.0.0.1/").expect("Invalid Redis URL");
-    let state = Arc::new(AppState { redis_client });
+    let redis_client =
+        redis::Client::open(env_config.redis_client_url.clone()).expect("Invalid Redis URL");
+
+    // Create shared application state
+    let state = Arc::new(AppState {
+        redis_client,
+        env_config: env_config.clone(),
+    });
 
     let app = Router::new()
         .route("/ws", get(ws_handler))
+        .route("/health", get(health_check_handler))
         .with_state(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], 5001));
+    let addr = SocketAddr::from(([0, 0, 0, 0], env_config.port));
     tracing::info!("Telemetry service listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| handle_socket(socket, state))
-}
+// health check endpoint for monitoring
+async fn health_check_handler() -> impl IntoResponse {
+    // send a sJson response with status "ok", and the current timestamp
+    let response = serde_json::json!({
+        "status": "ok",
+        "message": "Gateway is healthy",
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+    });
 
-async fn handle_socket(mut socket: WebSocket, state: Arc<AppState>) {
-    tracing::info!("New driver connected");
-
-    while let Some(msg) = socket.recv().await {
-        let msg = if let Ok(msg) = msg {
-            msg
-        } else {
-            // Client disconnected
-            tracing::info!("Driver disconnected");
-            return;
-        };
-
-        if let Message::Text(text) = msg {
-            if let Ok(ping) = serde_json::from_str::<LocationPing>(text.as_str()) {
-                // Establish connection once per driver session
-                let mut con = match state.redis_client.get_multiplexed_async_connection().await {
-                    Ok(c) => c,
-                    Err(e) => {
-                        tracing::error!("Failed to connect to Redis: {}", e);
-                        return; // Close this driver's socket since can't save their data
-                    }
-                };
-
-                // 1. Store the raw metadata (for quick lookup)
-                let key = format!("driver:{}:location", ping.driver_id);
-                let _: () = con.set_ex(&key, text.as_str(), 60).await.unwrap();
-
-                // 2. Add to Geospatial Index
-                // Command: GEOADD key longitude latitude member
-                let _: () = redis::cmd("GEOADD")
-                    .arg("drivers:locations")
-                    .arg(ping.lng)
-                    .arg(ping.lat)
-                    .arg(&ping.driver_id)
-                    .query_async(&mut con)
-                    .await
-                    .unwrap_or_else(|e| {
-                        tracing::error!("Failed to execute GEOADD: {}", e);
-                    });
-
-                tracing::info!("Geospatial index updated for: {}", ping.driver_id);
-            }
-        }
-    }
+    Json(response).into_response()
 }
