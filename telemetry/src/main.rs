@@ -17,6 +17,8 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    dotenvy::dotenv().ok();
+
     // Initialize tracing for high-visibility logging
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
