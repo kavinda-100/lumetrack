@@ -1,7 +1,7 @@
 {
 	"expo": {
-		"name": "lumetrack",
-		"slug": "lumetrack",
+		"name": "lumetrack-driver-app",
+		"slug": "lumetrack-driver-app",
 		"version": "1.0.0",
 		"orientation": "portrait",
 		"icon": "./assets/images/icon.png",
