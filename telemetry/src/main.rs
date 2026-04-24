@@ -52,7 +52,7 @@ async fn health_check_handler() -> impl IntoResponse {
     // send a sJson response with status "ok", and the current timestamp
     let response = serde_json::json!({
         "status": "ok",
-        "message": "Gateway is healthy",
+        "message": "Telemetry service is healthy",
         "timestamp": chrono::Utc::now().to_rfc3339(),
     });
 
